@@ -5,12 +5,15 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "debug.h"
+#define count 100000
 
-#define count 1000
-long process_do_num;  // 每个线程完成任务的数量
+// pairing多进程使用的全局变量
 fp12_t r_arr[count];
 g1_t g1_arr[count];
 ep2_t Ppub_arr[count];
+
+// sign和verify多进程使用的全局变量
 
 void init_pairing_input(){
     g1_t g1;
@@ -56,16 +59,8 @@ void init_pairing_input(){
     }
 }
 
-void run_pairing(int pid)
+void run_pairing(int pid, size_t start, size_t end)
 {
-    // 计算每个子进程分配到的任务区间
-    int myid = pid;
-    size_t start = myid * process_do_num;
-    size_t end = start + process_do_num;
-
-    if(end > count) {
-        end = count;
-    }
 #if 1
     for (size_t i = start; i < end; i++)
     {
@@ -113,11 +108,82 @@ void run_pairing(int pid)
     exit(100+pid);
 }
 
+void run_sign(int pid, size_t start, size_t end){
+    const char *id = "Alice";
+    // data = "Chinese IBS standard"
+    uint8_t data[20] = {0x43, 0x68, 0x69, 0x6E, 0x65, 0x73, 0x65, 0x20, 0x49, 0x42, 0x53, 0x20, 0x73, 0x74, 0x61, 0x6E, 0x64, 0x61, 0x72, 0x64};
+    int idlen = 5;
+    int datalen = 20;
+
+    SM9_SIGN_KEY sign_key;
+    SM9_SIGN_MASTER_KEY sign_master;
+    SM9_SIGN_CTX ctx;
+    uint8_t sig[104];
+    size_t siglen;
+
+    sign_user_key_init(&sign_key);
+    sign_master_key_init(&sign_master);
+
+    sm9_sign_master_key_extract_key(&sign_master, (char *)id, idlen, &sign_key);
+    sm9_sign_init(&ctx);
+    sm9_sign_update(&ctx,data, datalen);
+    for (size_t i = start; i < end; i++)
+    {
+        sm9_sign_finish(&ctx, &sign_key, sig, &siglen);
+    }
+//    PERFORMANCE_TEST_NEW("RELIC SM9_signature ",sm9_sign_finish(&ctx, &sign_key, sig, &siglen));
+
+//    sm9_verify_init(&ctx);
+//    sm9_verify_update(&ctx, data, datalen);
+//    PERFORMANCE_TEST_NEW("RELIC SM9_verification ",sm9_verify_finish(&ctx, sig, siglen, &sign_key,(char *)id, idlen));
+//
+    sign_master_key_free(&sign_master);
+    sign_user_key_free(&sign_key);
+//    printf("%s() ok\n", __FUNCTION__);
+    exit(100+pid);
+}
+
+void run_verify(int pid, size_t start, size_t end){
+    const char *id = "Alice";
+    // data = "Chinese IBS standard"
+    uint8_t data[20] = {0x43, 0x68, 0x69, 0x6E, 0x65, 0x73, 0x65, 0x20, 0x49, 0x42, 0x53, 0x20, 0x73, 0x74, 0x61, 0x6E, 0x64, 0x61, 0x72, 0x64};
+    int idlen = 5;
+    int datalen = 20;
+
+    SM9_SIGN_KEY sign_key;
+    SM9_SIGN_MASTER_KEY sign_master;
+    SM9_SIGN_CTX ctx;
+    uint8_t sig[104];
+    size_t siglen;
+
+    sign_user_key_init(&sign_key);
+    sign_master_key_init(&sign_master);
+
+    sm9_sign_master_key_extract_key(&sign_master, (char *)id, idlen, &sign_key);
+    sm9_sign_init(&ctx);
+    sm9_sign_update(&ctx,data, datalen);
+    sm9_sign_finish(&ctx, &sign_key, sig, &siglen);
+
+    sm9_verify_init(&ctx);
+    sm9_verify_update(&ctx, data, datalen);
+    for (size_t i = start; i < end; i++)
+    {
+        sm9_verify_finish(&ctx, sig, siglen, &sign_key,(char *)id, idlen);
+    }
+//    PERFORMANCE_TEST_NEW("RELIC SM9_verification ",sm9_verify_finish(&ctx, sig, siglen, &sign_key,(char *)id, idlen));
+
+    sign_master_key_free(&sign_master);
+    sign_user_key_free(&sign_key);
+//    printf("%s() ok\n", __FUNCTION__);
+    exit(100+pid);
+}
+
+
 // 参数分别为：线程数、初始化输入参数、运行函数
-int test_processes(int num_processes, void (*init_input)(void), void (*run)(int)){
+int test_processes(int num_processes, void (*init_input)(void), void (*run)(int, size_t, size_t)){
 
     // 计算每个线程需要完成的工作量
-    process_do_num = count / num_processes;
+    size_t process_do_num = count / num_processes;
 
     // 初始化SM9相关参数
     sm9_init();
@@ -136,7 +202,13 @@ int test_processes(int num_processes, void (*init_input)(void), void (*run)(int)
     {
         if ((pid[i] = fork()) == 0)
         {
-            run(i);
+            // 计算每个子进程分配到的任务区间
+            size_t start = i * process_do_num;
+            size_t end = i + process_do_num;
+            if(end > count) {
+                end = count;
+            }
+            run(i, start, end);
         }
     }
 
@@ -152,7 +224,8 @@ int test_processes(int num_processes, void (*init_input)(void), void (*run)(int)
         }
     }
     gettimeofday(&t1, NULL);
-    printf("%d processes do %d jobs in %.2f seconds\n", num_processes, count, t1.tv_sec - t0.tv_sec + 1E-6 * (t1.tv_usec - t0.tv_usec));
+    float total_time = t1.tv_sec - t0.tv_sec + 1E-6 * (t1.tv_usec - t0.tv_usec);
+    printf("%d processes do %d jobs in %.2f seconds, per second do %.2f times\n", num_processes, count, total_time, count/total_time);
     return 0;
 }
 
@@ -169,11 +242,26 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    test_processes(2, init_pairing_input, run_pairing);
-    test_processes(3, init_pairing_input, run_pairing);
-    test_processes(4, init_pairing_input, run_pairing);
-    test_processes(8, init_pairing_input, run_pairing);
-    test_processes(12, init_pairing_input, run_pairing);
+//    test_processes(2, init_pairing_input, run_pairing);
+//    test_processes(3, init_pairing_input, run_pairing);
+//    test_processes(4, init_pairing_input, run_pairing);
+//    test_processes(8, init_pairing_input, run_pairing);
+//    test_processes(12, init_pairing_input, run_pairing);
+    printf("test_multiprocess_sign: \n");
+    test_processes(128, init_pairing_input, run_sign);
+    test_processes(3, init_pairing_input, run_sign);
+    test_processes(4, init_pairing_input, run_sign);
+    test_processes(8, init_pairing_input, run_sign);
+    test_processes(12, init_pairing_input, run_sign);
+    test_processes(16, init_pairing_input, run_sign);
+
+    printf("test_multiprocess_verify: \n");
+    test_processes(2, init_pairing_input, run_verify);
+    test_processes(3, init_pairing_input, run_verify);
+    test_processes(4, init_pairing_input, run_verify);
+    test_processes(8, init_pairing_input, run_verify);
+    test_processes(12, init_pairing_input, run_verify);
+    test_processes(16, init_pairing_input, run_verify);
 
     core_clean();
 

@@ -115,7 +115,10 @@ int sm9_do_sign(const SM9_SIGN_KEY *key, const SM3_CTX *sm3_ctx, SM9_SIGNATURE *
 int sm9_verify_init(SM9_SIGN_CTX *ctx);
 int sm9_verify_update(SM9_SIGN_CTX *ctx, const uint8_t *data, size_t datalen);
 int sm9_verify_finish(SM9_SIGN_CTX *ctx, const uint8_t *sig, size_t siglen,	const SM9_SIGN_KEY *mpk, const char *id, size_t idlen);
-
+void sign_user_key_init(SM9_SIGN_KEY *key);
+void sign_user_key_free(SM9_SIGN_KEY *key);
+void sign_master_key_init(SM9_SIGN_MASTER_KEY *key);
+void sign_master_key_free(SM9_SIGN_MASTER_KEY *key);
 //sm9 crypto
 int sm9_enc_master_key_extract_key(SM9_ENC_MASTER_KEY *msk, const char *id, size_t idlen,SM9_ENC_KEY *key);
 int sm9_kem_encrypt(const SM9_ENC_KEY *mpk, const char *id, size_t idlen,size_t klen, uint8_t *kbuf, ep_t C);

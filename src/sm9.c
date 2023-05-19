@@ -5628,7 +5628,6 @@ int sm9_verify_finish(SM9_SIGN_CTX *ctx, const uint8_t *sig, size_t siglen,
 }
 
 //----------------------------speed test modules-------------------
-
 int speedtest_sm9_sign_verify(){
 	const char *id = "Alice";
 	// data = "Chinese IBS standard"
