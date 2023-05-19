@@ -1099,8 +1099,9 @@ int main(int argc, char *argv[]) {
 	}
 #endif
 	// test_other_pairing();
-	test_other_pairing_new();
-	test_a_lot();
+	// test_other_pairing_new();
+	test_sm9_modules();
+	// test_a_lot();
 	// test_miller();
 	//test_ep_add();
 	//test_sm9_sign_and_verify();

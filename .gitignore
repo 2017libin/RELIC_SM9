@@ -31,3 +31,6 @@ install_manifest.txt
 src/low/fiat/*.c
 
 build/
+.idea/
+cmake-build-debug-wsl/
+.vscode/

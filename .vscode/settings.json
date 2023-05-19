@@ -17,6 +17,7 @@
         "mem.h": "c",
         "test_sm9_sign": "c",
         "debug.h": "c",
-        "signal.h": "c"
+        "signal.h": "c",
+        "stdlib.h": "c"
     }
 }

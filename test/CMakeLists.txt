@@ -103,6 +103,8 @@ ADD_MODULE(sm9_kem)
 # add module : test_sm9_dh.c 
 ADD_MODULE(sm9_dh)
 
+ADD_MODULE(sm9_multiprocess)
+
 #ADD_MODULE(sm9_revtcp)
 #ADD_MODULE(sm9_tcp)
 
