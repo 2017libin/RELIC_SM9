@@ -139,4 +139,6 @@ int speedtest_sm9_sign_verify();
 int speedtest_sm9_kem_kdm();
 int speedtest_sm9_enc_dec();
 int speedtest_sm9_exchange();
+
+void enc_master_key_init(SM9_ENC_MASTER_KEY *tem);
 #endif

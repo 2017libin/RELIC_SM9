@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "debug.h"
-#define count 100000
+#define count 10000
 
 // pairing多进程使用的全局变量
 fp12_t r_arr[count];
@@ -14,6 +14,9 @@ g1_t g1_arr[count];
 ep2_t Ppub_arr[count];
 
 // sign和verify多进程使用的全局变量
+void init_none(){
+
+}
 
 void init_pairing_input(){
     g1_t g1;
@@ -61,6 +64,7 @@ void init_pairing_input(){
 
 void run_pairing(int pid, size_t start, size_t end)
 {
+    printf("pid %d run [%d, %d]\n", pid, start, end);
 #if 1
     for (size_t i = start; i < end; i++)
     {
@@ -178,12 +182,134 @@ void run_verify(int pid, size_t start, size_t end){
     exit(100+pid);
 }
 
+void run_enc(int pid, size_t start, size_t end) {
+    SM9_ENC_MASTER_KEY msk;
+    SM9_ENC_KEY enc_key;
+
+    //enc_master_key_init(&msk);
+    //enc_user_key_init(&enc_key);
+
+    ep_null(enc_key.Ppube);
+    ep_new(enc_key.Ppube);
+    ep2_null(enc_key.de);
+    ep2_new(enc_key.de);
+
+    uint8_t out[1000] = {0};
+    size_t outlen = 0;
+    int j = 1;
+
+    //Chinese IBE standard
+    uint8_t data[20] = {0x43, 0x68, 0x69, 0x6E, 0x65, 0x73, 0x65, 0x20, 0x49, 0x42, 0x45, 0x20, 0x73, 0x74, 0x61, 0x6E, 0x64, 0x61, 0x72, 0x64};
+    uint8_t dec[20] = {0};
+    size_t declen = 20;
+
+    //Bob
+    uint8_t IDB[3] = {0x42, 0x6F, 0x62};
+
+    enc_master_key_init(&msk);
+
+    if (sm9_enc_master_key_extract_key(&msk, (char *)IDB, sizeof(IDB), &enc_key) < 0) goto err; ++j;
+
+    // 先判断能否正确加密
+    if (sm9_encrypt(&msk, (char *)IDB, sizeof(IDB), data, sizeof(data), out, &outlen) < 0) goto err; ++j;
+    // 重复加密测试性能
+    for (size_t i = start; i < end; i++)
+    {
+        sm9_encrypt(&msk, (char *)IDB, sizeof(IDB), data, sizeof(data), out, &outlen);
+    }
+    //
+//    PERFORMANCE_TEST_NEW("RELIC SM9_encrypt ",sm9_encrypt(&msk, (char *)IDB, sizeof(IDB), data, sizeof(data), out, &outlen) );
+    //format_bytes(stdout, 0, 0, "ciphertext", out, outlen);
+//    PERFORMANCE_TEST_NEW("RELIC SM9_decrypt ",sm9_decrypt(&enc_key, (char *)IDB, sizeof(IDB), out, outlen, dec, &declen) );
+    // if (sm9_decrypt(&enc_key, (char *)IDB, sizeof(IDB), out, outlen, dec, &declen) < 0) goto err; ++j;
+//    if (memcmp(data, dec, sizeof(data)) != 0) goto err; ++j;
+//    //format_bytes(stdout, 0, 0, "plaintext", dec, declen);
+//    printf("%s() ok\n", __FUNCTION__);
+
+    ep_free(msk.Ppube);
+    bn_free(msk.ke);
+    ep_free(enc_key.Ppube);
+    ep2_free(enc_key.de);
+    //enc_master_key_free(&msk);
+    //enc_user_key_free(&enc_key);
+
+    exit(100+pid);
+
+    err:
+    ep_free(msk.Ppube);
+    bn_free(msk.ke);
+    ep_free(enc_key.Ppube);
+    ep2_free(enc_key.de);
+    //enc_master_key_free(&msk);
+    //enc_user_key_free(&enc_key);
+    printf("%s test %d failed\n", __FUNCTION__, j);
+    error_print();
+
+}
+
+void run_dec(int pid, size_t start, size_t end) {
+    SM9_ENC_MASTER_KEY msk;
+    SM9_ENC_KEY enc_key;
+
+    //enc_master_key_init(&msk);
+    //enc_user_key_init(&enc_key);
+
+    ep_null(enc_key.Ppube);
+    ep_new(enc_key.Ppube);
+    ep2_null(enc_key.de);
+    ep2_new(enc_key.de);
+
+    uint8_t out[1000] = {0};
+    size_t outlen = 0;
+    int j = 1;
+
+    //Chinese IBE standard
+    uint8_t data[20] = {0x43, 0x68, 0x69, 0x6E, 0x65, 0x73, 0x65, 0x20, 0x49, 0x42, 0x45, 0x20, 0x73, 0x74, 0x61, 0x6E, 0x64, 0x61, 0x72, 0x64};
+    uint8_t dec[20] = {0};
+    size_t declen = 20;
+
+    //Bob
+    uint8_t IDB[3] = {0x42, 0x6F, 0x62};
+
+    enc_master_key_init(&msk);
+
+    if (sm9_enc_master_key_extract_key(&msk, (char *)IDB, sizeof(IDB), &enc_key) < 0) goto err; ++j;
+
+    // 先判断能否正确加密
+    if (sm9_encrypt(&msk, (char *)IDB, sizeof(IDB), data, sizeof(data), out, &outlen) < 0) goto err; ++j;
+    // 先判断能否正确解密
+    if (sm9_decrypt(&enc_key, (char *)IDB, sizeof(IDB), out, outlen, dec, &declen) < 0) goto err; ++j;
+    // 重复解密测试性能
+    for (size_t i = start; i < end; i++)
+    {
+        sm9_decrypt(&enc_key, (char *)IDB, sizeof(IDB), out, outlen, dec, &declen);
+    }
+    ep_free(msk.Ppube);
+    bn_free(msk.ke);
+    ep_free(enc_key.Ppube);
+    ep2_free(enc_key.de);
+    //enc_master_key_free(&msk);
+    //enc_user_key_free(&enc_key);
+
+    exit(100+pid);
+
+    err:
+    ep_free(msk.Ppube);
+    bn_free(msk.ke);
+    ep_free(enc_key.Ppube);
+    ep2_free(enc_key.de);
+    //enc_master_key_free(&msk);
+    //enc_user_key_free(&enc_key);
+    printf("%s test %d failed\n", __FUNCTION__, j);
+    error_print();
+
+}
 
 // 参数分别为：线程数、初始化输入参数、运行函数
 int test_processes(int num_processes, void (*init_input)(void), void (*run)(int, size_t, size_t)){
 
     // 计算每个线程需要完成的工作量
-    size_t process_do_num = count / num_processes;
+    size_t process_do_num = count / num_processes + 1;
 
     // 初始化SM9相关参数
     sm9_init();
@@ -204,7 +330,7 @@ int test_processes(int num_processes, void (*init_input)(void), void (*run)(int,
         {
             // 计算每个子进程分配到的任务区间
             size_t start = i * process_do_num;
-            size_t end = i + process_do_num;
+            size_t end = start + process_do_num;
             if(end > count) {
                 end = count;
             }
@@ -241,28 +367,54 @@ int main(int argc, char *argv[]) {
         core_clean();
         return 0;
     }
-
-//    test_processes(2, init_pairing_input, run_pairing);
-//    test_processes(3, init_pairing_input, run_pairing);
-//    test_processes(4, init_pairing_input, run_pairing);
-//    test_processes(8, init_pairing_input, run_pairing);
-//    test_processes(12, init_pairing_input, run_pairing);
+#if 0
+    printf("test_multiprocess_pairing: \n");
+    test_processes(64, init_pairing_input, run_pairing);
+    test_processes(3, init_pairing_input, run_pairing);
+    test_processes(4, init_pairing_input, run_pairing);
+    test_processes(8, init_pairing_input, run_pairing);
+    test_processes(12, init_pairing_input, run_pairing);
+#endif
+#if 0
     printf("test_multiprocess_sign: \n");
-    test_processes(128, init_pairing_input, run_sign);
-    test_processes(3, init_pairing_input, run_sign);
-    test_processes(4, init_pairing_input, run_sign);
-    test_processes(8, init_pairing_input, run_sign);
-    test_processes(12, init_pairing_input, run_sign);
-    test_processes(16, init_pairing_input, run_sign);
-
+    test_processes(32, init_none, run_sign);
+    test_processes(3, init_none, run_sign);
+    test_processes(4, init_none, run_sign);
+    test_processes(8, init_none, run_sign);
+    test_processes(12, init_none, run_sign);
+    test_processes(16, init_none, run_sign);
+#endif
+#if 0
     printf("test_multiprocess_verify: \n");
-    test_processes(2, init_pairing_input, run_verify);
-    test_processes(3, init_pairing_input, run_verify);
-    test_processes(4, init_pairing_input, run_verify);
-    test_processes(8, init_pairing_input, run_verify);
-    test_processes(12, init_pairing_input, run_verify);
-    test_processes(16, init_pairing_input, run_verify);
-
+    test_processes(2, init_none, run_verify);
+    test_processes(3, init_none, run_verify);
+    test_processes(4, init_none, run_verify);
+    test_processes(8, init_none, run_verify);
+    test_processes(12, init_none, run_verify);
+    test_processes(16, init_none, run_verify);
+#endif
+#if 0
+    printf("test_multiprocess_enc: \n");
+    test_processes(2, init_none, run_enc);
+    test_processes(3, init_none, run_enc);
+    test_processes(4, init_none, run_enc);
+    test_processes(8, init_none, run_enc);
+    test_processes(12, init_none, run_enc);
+    test_processes(16, init_none, run_enc);
+    test_processes(24, init_none, run_enc);
+    test_processes(32, init_none, run_enc);
+#endif
+#if 1
+    printf("test_multiprocess_dec: \n");
+    test_processes(2, init_none, run_dec);
+    test_processes(3, init_none, run_dec);
+    test_processes(4, init_none, run_dec);
+    test_processes(8, init_none, run_dec);
+    test_processes(12, init_none, run_dec);
+    test_processes(16, init_none, run_dec);
+    test_processes(24, init_none, run_dec);
+    test_processes(32, init_none, run_dec);
+#endif
     core_clean();
 
     return 0;
